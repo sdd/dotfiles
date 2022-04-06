@@ -1,0 +1,1 @@
+/Users/scotty/Software/kakoune-buffers/buffers.kak
