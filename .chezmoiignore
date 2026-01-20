@@ -1,0 +1,7 @@
+kakrc
+dot_config/secrets/**
+dot_config/znt/privhist.db
+dot_config/gh/**
+dot_config/op/**
+dot_config/github-copilot/**
+dot_config/kak/plugins/**

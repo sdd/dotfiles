@@ -1,1 +1,0 @@
-/Users/scotty/Software/kakoune-colors/gotham.kak

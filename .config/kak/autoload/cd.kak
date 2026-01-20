@@ -1,1 +1,0 @@
-/Users/scotty/Software/kakoune-cd/cd.kak

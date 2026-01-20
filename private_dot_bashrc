@@ -1,0 +1,12 @@
+export DYLD_LIBRARY_PATH=`/usr/local/cuda/lib`:$DYLD_LIBRARY_PATH
+
+export NODE_ENV=development
+export NODE_DEV_LOCAL=TRUE
+
+. "$HOME/.local/bin/env"
+
+# Keep this last so that no 3rd-party code executed in this file has access to secrets they don't need
+if [ -f "$HOME/.config/secrets/env" ]; then
+   # shellcheck source=/dev/null
+    . "$HOME/.config/secrets/env"
+fi
