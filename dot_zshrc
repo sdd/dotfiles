@@ -59,7 +59,8 @@ zinit load zsh-users/zsh-autosuggestions
 zinit load zdharma-continuum/history-search-multi-word
 zinit load zdharma-continuum/zsh-diff-so-fancy
 
-zinit pack for fzf ls_colors 
+zinit pack"binary+keys" for fzf
+zinit pack ls_colors 
 
 #zinit load zdharma-continuum/zsh-navigation-tools
 
