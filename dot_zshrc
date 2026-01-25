@@ -59,7 +59,7 @@ zinit load zsh-users/zsh-autosuggestions
 zinit load zdharma-continuum/history-search-multi-word
 zinit load zdharma-continuum/zsh-diff-so-fancy
 
-zinit pack"binary+keys" for fzf
+#zinit pack"binary+keys" for fzf
 zinit pack for ls_colors
 
 #zinit load zdharma-continuum/zsh-navigation-tools
@@ -87,9 +87,11 @@ zinit load MenkeTechnologies/zsh-cargo-completion
 if command -v brew >/dev/null 2>&1; then
   eval "$(brew shellenv)"
 fi
+
 if command -v fnm >/dev/null 2>&1; then
   eval "$(fnm env --use-on-cd)"
 fi
+
 if command -v direnv >/dev/null 2>&1; then
   eval "$(direnv hook zsh)"
 fi
@@ -113,12 +115,7 @@ if command -v eza >/dev/null 2>&1; then
   alias l="eza"
   alias ll="eza -lag --git --icons"
 fi
-if command -v fzf >/dev/null 2>&1; then
-  if [ -f "$HOME/.fzf.zsh" ]; then
-    # shellcheck source=/dev/null
-    . "$HOME/.fzf.zsh"
-  fi
-fi
+
 if ! command -v delta >/dev/null 2>&1; then
   export GIT_PAGER=less
 fi
