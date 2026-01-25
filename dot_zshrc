@@ -60,7 +60,7 @@ zinit load zdharma-continuum/history-search-multi-word
 zinit load zdharma-continuum/zsh-diff-so-fancy
 
 zinit pack"binary+keys" for fzf
-zinit pack ls_colors 
+zinit pack for ls_colors
 
 #zinit load zdharma-continuum/zsh-navigation-tools
 
