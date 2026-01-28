@@ -1,0 +1,51 @@
+# Managed by chezmoi — edit in the repo. See github.com/sdd/dotfiles/README.md#profile
+# Shared shell environment (POSIX). Keep this portable and fast.
+# Machine-specific overrides live in ~/.profile.local.
+
+# Prevent double-sourcing (login zsh reads both .zshenv and .zprofile).
+if [ -n "${__PROFILE_LOADED:-}" ]; then
+  return 0
+fi
+__PROFILE_LOADED=1
+
+# PATH helper (available to ~/.profile.local)
+path_prepend() {
+  case ":$PATH:" in
+    *":$1:"*) ;;
+    *) PATH="$1:$PATH" ;;
+  esac
+}
+
+# ensure non-interactive bash gets shared env
+export BASH_ENV="$HOME/.profile"
+
+# Common PATH entries
+path_prepend "$HOME/.local/bin"
+export PATH
+
+# Common universal ENV vars 
+export NODE_ENV=development
+export NODE_DEV_LOCAL=TRUE
+
+# Rust
+if [ -f "$HOME/.cargo/env" ]; then
+  # shellcheck source=/dev/null
+  . "$HOME/.cargo/env"
+fi
+
+# uv
+if [ -f "$HOME/.local/bin/env" ]; then
+  # shellcheck source=/dev/null
+  . "$HOME/.local/bin/env"
+fi
+
+# local machine overrides / extras
+# Should only contain ENV-related stuff:
+# * extra PATH entries using path_prepend()
+# * other universal ENV vars
+# * NO SECRETS / TOKENS - these should be in ~/.local/secrets/env
+if [ -f "$HOME/.profile.local" ]; then
+  # shellcheck source=/dev/null
+  . "$HOME/.profile.local"
+fi
+

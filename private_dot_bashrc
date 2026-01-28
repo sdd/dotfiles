@@ -1,12 +1,6 @@
-if [[ -d "/usr/local/cuda" ]]; then
-    export DYLD_LIBRARY_PATH=`/usr/local/cuda/lib`:$DYLD_LIBRARY_PATH
-fi
-
-export NODE_ENV=development
-export NODE_DEV_LOCAL=TRUE
-
-if [[ -f "$HOME/.local/bin/env" ]]; then
-	. "$HOME/.local/bin/env"
+if [ -f "$HOME/.profile" ]; then
+  # shellcheck source=/dev/null
+  . "$HOME/.profile"
 fi
 
 # Keep this last so that no 3rd-party code executed in this file has access to secrets they don't need

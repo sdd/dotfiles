@@ -1,0 +1,6 @@
+# Managed by chezmoi — do not edit here. See github.com/sdd/dotfiles/README.md#zshenv
+# Source the shared environment for *all* zsh invocations.
+if [ -f "$HOME/.profile" ]; then
+  # shellcheck source=/dev/null
+  . "$HOME/.profile"
+fi
