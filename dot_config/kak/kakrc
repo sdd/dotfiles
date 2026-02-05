@@ -8,28 +8,77 @@ evaluate-commands %sh{
     git clone -q https://codeberg.org/jdugan6240/kak-bundle "$plugins/kak-bundle"
   printf "%s\n" "source '$plugins/kak-bundle/rc/kak-bundle.kak'"
 }
+
 bundle-noload kak-bundle https://codeberg.org/jdugan6240/kak-bundle
 
-# plug "alexherbo2/kakoune-dracula-theme" theme config %{
-#     try %{
-#         colorscheme dracula
-#     }
-# }
-# plug "jdugan6240/powerline.kak" config %{
-#     try %{
-#         require-module powerline
-#         powerline-theme gruvbox
-#         powerline-separator arrow
-#         powerline-toggle-module client
-#         powerline-start
-#     }
-# }
+# Plugin-specific fixes must be defined before the bundle loads them.
+hook global User "bundle-loaded=kakoune-cargo" %{
+  try %{ remove-hooks global cargo-compiler }
+  hook -group cargo-compiler global WinSetOption compiler=(?!cargo).* %{
+    try %{ remove-highlighter window/cargo }
+    remove-hooks window cargo-hooks
+  }
+}
 
-# plug "andreyorst/fzf.kak"
-# plug "occivink/kakoune-snippets"
-# plug "occivink/kakoune-vertical-selection"
-# plug "krornus/kakoune-mouvre"
-# plug "krornus/kakoune-cargo"
+hook global User "bundle-loaded=kakoune-mouvre" %{
+  try %{ remove-hooks global diff-chunk-highlight }
+  hook -group diff-chunk-highlight global WinSetOption filetype=diff %{
+    add-highlighter window/diff-chunk ref diff-chunk
+  }
+  hook -group diff-chunk-highlight global WinSetOption filetype=(?!diff).* %{
+    try %{ remove-highlighter window/diff-chunk }
+  }
+
+  try %{ remove-hooks global toml-section-highlight }
+  hook -group toml-section-highlight global WinSetOption filetype=toml %{
+    add-highlighter window/toml-section ref toml-section
+  }
+  hook -group toml-section-highlight global WinSetOption filetype=(?!toml).* %{
+    try %{ remove-highlighter window/toml-section }
+  }
+}
+
+bundle-theme one.kak https://codeberg.org/raiguard/kak-one.git
+bundle-install-hook one.kak %{
+  mkdir -p "${kak_config}/colors"
+  # Keep the symlink to the repo (not required, but convenient for discovery).
+  ln -sf "${kak_opt_bundle_path}/one.kak" "${kak_config}/colors/"
+  # Expose actual theme files where Kakoune expects them.
+  for file in "${kak_opt_bundle_path}/one.kak/colors/"*.kak; do
+    [ -e "$file" ] || continue
+    ln -sf "$file" "${kak_config}/colors/$(basename "$file")"
+  done
+}
+bundle-cleaner one.kak %{
+  rm -f "${kak_config}/colors/one.kak"
+  for file in "${kak_config}/colors/one-"*.kak; do
+    [ -e "$file" ] || continue
+    rm -f "$file"
+  done
+}
+
+# best default colorscheme
+# colorscheme desertex
+# Try to load the theme if already installed; otherwise defer until after bootstrap.
+try %{
+    colorscheme one-dark
+}
+
+bundle powerline https://github.com/andreyorst/powerline.kak %{
+    try %{
+        require-module powerline
+        powerline-theme gruvbox
+        powerline-separator arrow
+        powerline-toggle-module client
+        powerline-start
+    }
+}
+
+bundle fzf.kak https://github.com/andreyorst/fzf.kak
+bundle kakoune-snippets https://github.com/occivink/kakoune-snippets
+bundle kakoune-vertical-selection https://github.com/occivink/kakoune-vertical-selection
+bundle kakoune-mouvre https://github.com/krornus/kakoune-mouvre
+bundle kakoune-cargo https://github.com/krornus/kakoune-cargo
 
 # plug "ul/kak-lsp" do %{
 #     cargo build --release --locked
@@ -64,6 +113,77 @@ bundle-install-hook kak-lsp %{
 
 bundle-cleaner kak-lsp %{
   rm ~/.cargo/bin/kak-lsp
+}
+
+# Bootstrap missing bundles on first startup and provide lightweight status.
+hook global KakBegin .* %{
+  evaluate-commands %sh{
+    marker="$kak_opt_bundle_path/.bootstrap-ok"
+    fail_marker="$kak_opt_bundle_path/.bootstrap-failed"
+    needs_install=0
+    if [ -f "$fail_marker" ]; then
+      needs_install=1
+    fi
+    for plug in $kak_opt_bundle_plugins; do
+      if [ ! -d "$kak_opt_bundle_path/$plug" ]; then
+        needs_install=1
+        break
+      fi
+      case "$plug" in
+        kak-bundle|one.kak) continue ;;
+      esac
+      if [ ! -f "$kak_opt_bundle_path/$plug-load.kak" ]; then
+        needs_install=1
+        break
+      fi
+    done
+
+    if [ "$needs_install" -eq 1 ]; then
+      printf "%s\n" "echo -markup {yellow}kak-bundle: installing missing plugins...{default}"
+      printf "%s\n" "bundle-install"
+      exit 0
+    fi
+
+    if [ ! -f "$marker" ]; then
+      touch "$marker"
+    fi
+
+    if ! command -v kak-lsp >/dev/null 2>&1; then
+      printf "%s\n" "echo -debug 'kak-lsp not found (LSP disabled until installed)'"
+    fi
+    if ! command -v rust-analyzer >/dev/null 2>&1; then
+      printf "%s\n" "echo -debug 'rust-analyzer not found (Rust LSP may not start)'"
+    fi
+  }
+}
+
+# After bundle-install completes, load new plugins in this session.
+hook global User bundle-after-install %{
+  evaluate-commands %sh{
+    marker="$kak_opt_bundle_path/.bootstrap-ok"
+    fail_marker="$kak_opt_bundle_path/.bootstrap-failed"
+    if [ "$kak_opt_bundle_succeeded" = "true" ]; then
+      touch "$marker"
+      rm -f "$fail_marker"
+      for plug in $kak_opt_bundle_plugins_to_install; do
+        case "$plug" in
+          kak-bundle|one.kak) continue ;;
+        esac
+        load="$kak_opt_bundle_path/$plug-load.kak"
+        if [ -f "$load" ]; then
+          printf "try %%{ source '%s' }\n" "$load"
+        fi
+      done
+      if [ -f "$kak_config/colors/one-dark.kak" ]; then
+        printf "%s\n" "colorscheme one-dark"
+      fi
+      printf "%s\n" "echo -markup {green}kak-bundle: plugins ready.{default}"
+    else
+      rm -f "$marker"
+      touch "$fail_marker"
+      printf "%s\n" "info -title 'kak-bundle' 'Install/update failed. See *bundle-status*.'"
+    fi
+  }
 }
 
 
@@ -161,8 +281,12 @@ try %{
 }
 
 # FZF plugin configuration
-try %{
-    map global normal <c-p> ': fzf-mode<ret>'
+evaluate-commands %sh{
+  if command -v fzf >/dev/null 2>&1; then
+    printf "%s\n" "map global normal <c-p> ': fzf-mode<ret>'"
+  else
+    printf "%s\n" "echo -debug 'fzf not found (fzf.kak mapping disabled)'"
+  fi
 }
 
 # keys for goto-file.kak autoloaded plugin
@@ -175,17 +299,27 @@ try %{
 map global normal '#' :comment-line<ret> -docstring 'comment line'
 map global normal '<a-#>' :comment-block<ret> -docstring 'comment block'
 
-# copy selection to system clipboard on yank / cut / cut-replace (y/c/d)
-hook global NormalKey y|d|c %{ nop %sh{
-  printf %s "$kak_main_reg_dquote" | xsel --input --clipboard
-}}
+# Cross-platform clipboard integration.
+evaluate-commands %sh{
+  if command -v pbcopy >/dev/null 2>&1 && command -v pbpaste >/dev/null 2>&1; then
+    copy_cmd="pbcopy"
+    paste_cmd="pbpaste"
+  elif command -v wl-copy >/dev/null 2>&1 && command -v wl-paste >/dev/null 2>&1; then
+    copy_cmd="wl-copy"
+    paste_cmd="wl-paste --no-newline"
+  elif command -v xsel >/dev/null 2>&1; then
+    copy_cmd="xsel --input --clipboard"
+    paste_cmd="xsel --output --clipboard"
+  else
+    printf "%s\n" "echo -debug 'no clipboard helper found (pbcopy/pbpaste, wl-copy/wl-paste, xsel)'"
+    exit 0
+  fi
 
-# user-p and user-P: paste after/before from sys clipboard
-map global user P '!xsel --output --clipboard<ret>'
-map global user p '<a-!>xsel --output --clipboard<ret>'
-
-# alt-p paste at current position in insert mode
-map global insert <a-p> '<a-;>P'
+  printf "%s\n" "hook global NormalKey y|d|c %{ nop %sh{ printf %s \\\"\\$kak_main_reg_dquote\\\" | $copy_cmd } }"
+  printf "%s\n" "map global user P '!$paste_cmd<ret>'"
+  printf "%s\n" "map global user p '<a-!>$paste_cmd<ret>'"
+  printf "%s\n" "map global insert <a-p> '<a-;>P'"
+}
 
 map global insert <tab>   '<a-;><gt>'
 map global insert <s-tab> '<a-;><lt>'
