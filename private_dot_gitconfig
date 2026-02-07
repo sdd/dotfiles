@@ -1,7 +1,3 @@
-[user]
-	name = Scott Donnelly
-	email = scott@donnel.ly
-
 [color]
 	ui = true
 	diff = auto
