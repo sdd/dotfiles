@@ -11,33 +11,6 @@ evaluate-commands %sh{
 
 bundle-noload kak-bundle https://codeberg.org/jdugan6240/kak-bundle
 
-# Plugin-specific fixes must be defined before the bundle loads them.
-hook global User "bundle-loaded=kakoune-cargo" %{
-  try %{ remove-hooks global cargo-compiler }
-  hook -group cargo-compiler global WinSetOption compiler=(?!cargo).* %{
-    try %{ remove-highlighter window/cargo }
-    remove-hooks window cargo-hooks
-  }
-}
-
-hook global User "bundle-loaded=kakoune-mouvre" %{
-  try %{ remove-hooks global diff-chunk-highlight }
-  hook -group diff-chunk-highlight global WinSetOption filetype=diff %{
-    add-highlighter window/diff-chunk ref diff-chunk
-  }
-  hook -group diff-chunk-highlight global WinSetOption filetype=(?!diff).* %{
-    try %{ remove-highlighter window/diff-chunk }
-  }
-
-  try %{ remove-hooks global toml-section-highlight }
-  hook -group toml-section-highlight global WinSetOption filetype=toml %{
-    add-highlighter window/toml-section ref toml-section
-  }
-  hook -group toml-section-highlight global WinSetOption filetype=(?!toml).* %{
-    try %{ remove-highlighter window/toml-section }
-  }
-}
-
 bundle-theme one.kak https://codeberg.org/raiguard/kak-one.git
 bundle-install-hook one.kak %{
   mkdir -p "${kak_config}/colors"
@@ -74,46 +47,54 @@ bundle powerline https://github.com/andreyorst/powerline.kak %{
     }
 }
 
-bundle fzf.kak https://github.com/andreyorst/fzf.kak
+bundle fzf.kak https://github.com/andreyorst/fzf.kak %{
+    map global user f %{:fzf-mode <ret>} -docstring "FZF mode"
+}
 bundle kakoune-snippets https://github.com/occivink/kakoune-snippets
 bundle kakoune-vertical-selection https://github.com/occivink/kakoune-vertical-selection
-bundle kakoune-mouvre https://github.com/krornus/kakoune-mouvre
-bundle kakoune-cargo https://github.com/krornus/kakoune-cargo
-
-# plug "ul/kak-lsp" do %{
-#     cargo build --release --locked
-#     cargo install --force
-#     ln -sf target/release/kak-lsp ~/.local/bin/
-# } config %{
-#     try %{
-#         require-module lsp
-#         set-option global lsp_diagnostic_line_error_sign '!'
-#         set-option global lsp_diagnostic_line_warning_sign '?'
-
-#         define-command ne -docstring 'go to next error/warning from lsp' %{ lsp-find-error --include-warnings }
-#         define-command pe -docstring 'go to previous error/warning from lsp' %{ lsp-find-error --previous --include-warnings }
-#         define-command ee -docstring 'go to current error/warning from lsp' %{ lsp-find-error --include-warnings; lsp-find-error --previous --include-warnings }
-
-#         define-command lsp-restart -docstring 'restart lsp server' %{ lsp-stop; lsp-start }
-
-#         hook global KakEnd .* lsp-exit
-#         lsp-enable
-#     }
-# }
+bundle-customload kakoune-mouvre https://github.com/krornus/kakoune-mouvre %{
+  # Minimal load: needed for search-no-wrap (kakoune-cargo dependency).
+  source "%opt{bundle_path}/kakoune-mouvre/mouvre.kak"
+}
+bundle-customload kakoune-cargo https://github.com/krornus/kakoune-cargo %{
+  source "%opt{bundle_path}/kakoune-cargo/cargo.kak"
+  # Make cleanup hooks resilient when no highlighters exist.
+  try %{ remove-hooks global cargo-compiler }
+  hook -group cargo-compiler global WinSetOption compiler=(?!cargo).* %{
+    try %{ remove-highlighter window/cargo }
+    remove-hooks window cargo-hooks
+  }
+}
 
 bundle kak-lsp https://github.com/kak-lsp/kak-lsp %{
-  # Configure here...
-  map global user l %{:enter-user-mode lsp<ret>} -docstring "LSP mode"
-}
+    try %{ declare-user-mode lsp }
+    map global user l %{:enter-user-mode lsp<ret>} -docstring "LSP mode"
+    map global lsp d ':lsp-definition<ret>' -docstring 'definition'
+    map global lsp r ':lsp-references<ret>' -docstring 'references'
+    map global lsp t ':lsp-type-definition<ret>' -docstring 'type definition'
+    map global lsp i ':lsp-implementation<ret>' -docstring 'implementation'
+    map global lsp h ':lsp-hover<ret>' -docstring 'hover docs'
+    map global lsp R ':lsp-rename<ret>' -docstring 'rename'
+    map global lsp n ':lsp-find-error --include-warnings<ret>' -docstring 'next diagnostic'
+    map global lsp p ':lsp-find-error --previous --include-warnings<ret>' -docstring 'prev diagnostic'
 
+    set-option global lsp_diagnostic_line_error_sign '!'
+    set-option global lsp_diagnostic_line_warning_sign '?'
+    set-option global lsp_diagnostic_line_info_sign 'i'
+    set-option global lsp_diagnostic_line_hint_sign 'h'
+
+    lsp-enable
+    lsp-diagnostic-lines-enable global
+    lsp-inline-diagnostics-enable global
+    hook -always global KakEnd .* lsp-exit
+}
 bundle-install-hook kak-lsp %{
-  # Any shell code that needs to be run goes here...
   cargo install --locked --force --path .
 }
-
 bundle-cleaner kak-lsp %{
   rm ~/.cargo/bin/kak-lsp
 }
+
 
 # Bootstrap missing bundles on first startup and provide lightweight status.
 hook global KakBegin .* %{
@@ -162,12 +143,15 @@ hook global User bundle-after-install %{
   evaluate-commands %sh{
     marker="$kak_opt_bundle_path/.bootstrap-ok"
     fail_marker="$kak_opt_bundle_path/.bootstrap-failed"
+    if [ -z "$kak_opt_bundle_plugins_to_install" ]; then
+      exit 0
+    fi
     if [ "$kak_opt_bundle_succeeded" = "true" ]; then
       touch "$marker"
       rm -f "$fail_marker"
       for plug in $kak_opt_bundle_plugins_to_install; do
         case "$plug" in
-          kak-bundle|one.kak) continue ;;
+          kak-bundle|one.kak|kak-lsp) continue ;;
         esac
         load="$kak_opt_bundle_path/$plug-load.kak"
         if [ -f "$load" ]; then
@@ -187,17 +171,6 @@ hook global User bundle-after-install %{
 }
 
 
-
-nop %sh{
-    if command -v kak-lsp >/dev/null 2>&1; then
-        config="$HOME/.config/kak-lsp/kak-lsp.toml"
-        if [ -f "$config" ]; then
-            kak-lsp -s "$kak_session" -vvv --config "$config" > /tmp/kak-lsp.log 2>&1 < /dev/null &
-        else
-            kak-lsp -s "$kak_session" -vvv > /tmp/kak-lsp.log 2>&1 < /dev/null &
-        fi
-    fi
-}
 
 # show line numbers
 addhl global/ number-lines
@@ -288,6 +261,110 @@ evaluate-commands %sh{
     printf "%s\n" "echo -debug 'fzf not found (fzf.kak mapping disabled)'"
   fi
 }
+
+# FZF performance and filtering tweaks.
+hook global ModuleLoaded fzf %{
+    # Faster startup: avoid heavy previews by default.
+    set-option global fzf_preview false
+    set-option global fzf_file_preview false
+    # Use ripgrep for file lists and ignore VCS internals.
+    set-option global fzf_file_command "rg --files --hidden -g '!.git/**'"
+}
+
+# Rust QoL: ignore target/ in fzf file search.
+hook global BufSetOption filetype=rust %{
+    set-option buffer fzf_file_command "rg --files --hidden -g '!.git/**' -g '!target/**' -g '!**/target/**'"
+}
+
+# Tmux integration: split panes and attach a new Kakoune client to this session.
+try %{ declare-user-mode tmux }
+map global user t ':enter-user-mode tmux<ret>' -docstring 'tmux…'
+map global normal <c-k> ':enter-user-mode tmux<ret>' -docstring 'tmux…'
+
+define-command -docstring "tmux-split-vertical: split pane side-by-side and attach to current session." tmux-split-vertical %{
+  evaluate-commands %sh{
+    if [ -z "${kak_client_env_TMUX:-}" ] || ! command -v tmux >/dev/null 2>&1; then
+      printf "%s\n" "echo -debug 'tmux not available'"
+      exit 0
+    fi
+
+    session="$kak_session"
+    bufname="$kak_bufname"
+    buffile="$kak_buffile"
+    cwd="$PWD"
+    if [ -n "$buffile" ]; then
+      cwd=$(dirname "$buffile")
+      open_cmd="edit -existing -- \"$buffile\""
+    else
+      open_cmd="buffer \"$bufname\""
+    fi
+    open_cmd=$(printf "%s" "$open_cmd" | sed 's/\"/\\\\\"/g')
+
+    tmux split-window -h -c "$cwd" "kak -c \"$session\" -e \"$open_cmd\""
+  }
+}
+
+define-command -docstring "tmux-split-horizontal: split pane top/bottom and attach to current session." tmux-split-horizontal %{
+  evaluate-commands %sh{
+    if [ -z "${kak_client_env_TMUX:-}" ] || ! command -v tmux >/dev/null 2>&1; then
+      printf "%s\n" "echo -debug 'tmux not available'"
+      exit 0
+    fi
+
+    session="$kak_session"
+    bufname="$kak_bufname"
+    buffile="$kak_buffile"
+    cwd="$PWD"
+    if [ -n "$buffile" ]; then
+      cwd=$(dirname "$buffile")
+      open_cmd="edit -existing -- \"$buffile\""
+    else
+      open_cmd="buffer \"$bufname\""
+    fi
+    open_cmd=$(printf "%s" "$open_cmd" | sed 's/\"/\\\\\"/g')
+
+    tmux split-window -v -c "$cwd" "kak -c \"$session\" -e \"$open_cmd\""
+  }
+}
+
+define-command -docstring "tmux-split-vertical-fzf: split pane side-by-side and open fzf-file." tmux-split-vertical-fzf %{
+  evaluate-commands %sh{
+    if [ -z "${kak_client_env_TMUX:-}" ] || ! command -v tmux >/dev/null 2>&1; then
+      printf "%s\n" "echo -debug 'tmux not available'"
+      exit 0
+    fi
+
+    session="$kak_session"
+    cwd="$PWD"
+    if [ -n "$kak_buffile" ]; then
+      cwd=$(dirname "$kak_buffile")
+    fi
+
+    tmux split-window -h -c "$cwd" "kak -c \"$session\" -e \"require-module fzf-file; fzf-file\""
+  }
+}
+
+define-command -docstring "tmux-split-horizontal-fzf: split pane top/bottom and open fzf-file." tmux-split-horizontal-fzf %{
+  evaluate-commands %sh{
+    if [ -z "${kak_client_env_TMUX:-}" ] || ! command -v tmux >/dev/null 2>&1; then
+      printf "%s\n" "echo -debug 'tmux not available'"
+      exit 0
+    fi
+
+    session="$kak_session"
+    cwd="$PWD"
+    if [ -n "$kak_buffile" ]; then
+      cwd=$(dirname "$kak_buffile")
+    fi
+
+    tmux split-window -v -c "$cwd" "kak -c \"$session\" -e \"require-module fzf-file; fzf-file\""
+  }
+}
+
+map global tmux '=' ':tmux-split-vertical<ret>' -docstring 'split vertical (same buffer)'
+map global tmux '"' ':tmux-split-horizontal<ret>' -docstring 'split horizontal (same buffer)'
+map global tmux 'v' ':tmux-split-vertical-fzf<ret>' -docstring 'split vertical (fzf file)'
+map global tmux 's' ':tmux-split-horizontal-fzf<ret>' -docstring 'split horizontal (fzf file)'
 
 # keys for goto-file.kak autoloaded plugin
 try %{
