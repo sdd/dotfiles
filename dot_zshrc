@@ -1,10 +1,3 @@
-# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
-# Initialization code that may require console input (password prompts, [y/n]
-# confirmations, etc.) must go above this block; everything else may go below.
-if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
-  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
-fi
-
 ### Added by Zinit's installer
 
 # if zinit is not found, install it via git clone
@@ -21,41 +14,80 @@ source "$HOME/.local/share/zinit/zinit.git/zinit.zsh"
 autoload -Uz _zinit
 (( ${+_comps} )) && _comps[zinit]=_zinit
 
-# eval "$(brew shellenv)"
-
 # Load a few important annexes, without Turbo
 # (this is currently required for annexes)
+# note - no longer try to install Rust here. Having rustup managed by zinit causes problems
 zinit light-mode for \
     zdharma-continuum/zinit-annex-as-monitor \
     zdharma-continuum/zinit-annex-bin-gem-node \
     zdharma-continuum/zinit-annex-patch-dl \
-    zdharma-continuum/zinit-annex-rust
-
 ### End of Zinit's installer chunk
 
-zinit ice depth=1; zinit load romkatv/powerlevel10k
-# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+# Bootstrap tmux plugin manager for the tmux config.
+# Also install tmux-powerkit rather than letting tpm do it itself as the
+# submodules cause issues with tpm's bootstrapping
+_tmux_plugins_dir="$HOME/.tmux/plugins"
+_tmux_tpm_dir="$_tmux_plugins_dir/tpm"
+_tmux_powerkit_dir="$_tmux_plugins_dir/tmux-powerkit"
+if [[ ! -x "$_tmux_tpm_dir/tpm" ]]; then
+  print -P "%F{33}Installing tmux plugin manager (%F{220}tmux-plugins/tpm%F{33})...%f"
+  command mkdir -p "$_tmux_plugins_dir"
+  if command git clone --depth 1 https://github.com/tmux-plugins/tpm "$_tmux_tpm_dir"; then
+    print -P "%F{34}TPM installation successful.%f"
+    if [[ ! -f "$_tmux_powerkit_dir/tmux-powerkit.tmux" ]]; then
+      print -P "%F{33}Installing tmux PowerKit (%F{220}fabioluciano/tmux-powerkit%F{33})...%f"
+      command git clone --depth 1 https://github.com/fabioluciano/tmux-powerkit "$_tmux_powerkit_dir" \
+        && print -P "%F{34}PowerKit installation successful.%f" \
+        || print -P "%F{160}PowerKit installation failed.%f"
+    fi
+    [[ -x "$_tmux_tpm_dir/bin/install_plugins" ]] && "$_tmux_tpm_dir/bin/install_plugins"
+  else
+    print -P "%F{160}TPM installation failed.%f"
+  fi
+elif [[ ! -f "$_tmux_powerkit_dir/tmux-powerkit.tmux" ]]; then
+  print -P "%F{33}Installing tmux PowerKit (%F{220}fabioluciano/tmux-powerkit%F{33})...%f"
+  command git clone --depth 1 https://github.com/fabioluciano/tmux-powerkit "$_tmux_powerkit_dir" \
+    && print -P "%F{34}PowerKit installation successful.%f" \
+    || print -P "%F{160}PowerKit installation failed.%f"
+  [[ -x "$_tmux_tpm_dir/bin/install_plugins" ]] && "$_tmux_tpm_dir/bin/install_plugins"
+elif [[ ! -d "$_tmux_plugins_dir/tmux-yank" && -x "$_tmux_tpm_dir/bin/install_plugins" ]]; then
+  "$_tmux_tpm_dir/bin/install_plugins"
+fi
+unset _tmux_plugins_dir _tmux_tpm_dir _tmux_powerkit_dir
 
-#zinit wait lucid for \
-#  atinit"ZINIT[COMPINIT_OPTS]=-C; zicompinit; zicdreplay" \
-#    zdharma-continuum/fast-syntax-hightlighting \
-#  blockf \
-#    zsh-users/zsh-completions \
-#  atload"!_zsh_autosuggest_start" \
-#    zsh-users/zsh-autosuggestions
-#
+# Save before zinit touches anything
+_ZINIT_ORIGINAL_PATH=$PATH
 
+# install jq
 zi for \
     from'gh-r' \
     sbin'* -> jq' \
     nocompile \
   @jqlang/jq
 
+# install bat
+zinit ice from'gh-r' as'program' mv'bat* bat' sbin'**/bat(.exe|) -> bat'
+zinit light @sharkdp/bat
+
+# install delta (for git diffs)
+zinit ice from'gh-r' as'program' sbin'**/delta -> delta'
+zinit light dandavison/delta
+
+
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+# Initialization code that may require console input (password prompts, [y/n]
+# confirmations, etc.) must go above this block; everything else may go below.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
+zinit ice depth=1; zinit load romkatv/powerlevel10k
+# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
 zinit load zdharma-continuum/fast-syntax-highlighting
 zinit load zsh-users/zsh-completions
 zinit load zsh-users/zsh-autosuggestions
-
 zinit load zdharma-continuum/history-search-multi-word
 zinit load zdharma-continuum/zsh-diff-so-fancy
 
@@ -66,23 +98,12 @@ zinit pack for ls_colors
 
 # mostly just for ../.../...., but adds other stuff i dont want
 zinit snippet OMZL::directories.zsh
-
-zinit ice from'gh-r' as'program' mv'bat* bat' sbin'**/bat(.exe|) -> bat'
-zinit light @sharkdp/bat
-
-zinit ice rustup cargo'!eza'
-zi load zdharma-continuum/null
-
 zinit snippet OMZL::key-bindings.zsh
 zinit snippet OMZL::completion.zsh
 zinit snippet OMZL::functions.zsh
 zinit snippet OMZL::history.zsh
 zinit snippet OMZL::grep.zsh
 zinit snippet OMZP::git
-
-zinit ice wait lucid as'program' from'gh-r' sbin'**/delta -> delta'
-zinit light dandavison/delta
-
 zinit load MenkeTechnologies/zsh-cargo-completion
 
 if command -v brew >/dev/null 2>&1; then
@@ -90,7 +111,7 @@ if command -v brew >/dev/null 2>&1; then
 fi
 
 if command -v fnm >/dev/null 2>&1; then
-  eval "$(fnm env --use-on-cd)"
+  eval "$(fnm env --use-on-cd --shell zsh --version-file-strategy=recursive )"
 fi
 
 if command -v direnv >/dev/null 2>&1; then
@@ -102,12 +123,6 @@ autoload -Uz compinit && compinit
 # ensures that cmd-f and cmd-b work as fwd/back 1 word
 # when zsh is running inside tmux
 bindkey -e
-
-# needed for uv (python tool, docs.astral.sh/uv/)
-if [ -f "$HOME/.local/bin/env" ]; then
-  . "$HOME/.local/bin/env"
-fi
-
 
 alias glg="git log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=short"
 alias glom="ggl"
@@ -123,7 +138,7 @@ fi
 
 alias ek="ekphos"
 
-#keep as the last one
+#keep as the last zinit module and after all aliases
 zinit load djui/alias-tips
 
 # Local machine overrides (not tracked by chezmoi). Put machine-specific env vars in ~/.zshrc.local.

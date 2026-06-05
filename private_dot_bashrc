@@ -74,3 +74,4 @@ if [ -f "$HOME/.config/secrets/env" ]; then
    # shellcheck source=/dev/null
     . "$HOME/.config/secrets/env"
 fi
+
