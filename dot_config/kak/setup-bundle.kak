@@ -15,7 +15,8 @@ bundle-theme one.kak https://codeberg.org/raiguard/kak-one.git
 bundle-install-hook one.kak %{
   mkdir -p "${kak_config}/colors"
   # Keep the symlink to the repo (not required, but convenient for discovery).
-  ln -sf "${kak_opt_bundle_path}/one.kak" "${kak_config}/colors/"
+  rm -rf "${kak_config}/colors/one.kak"
+  ln -s "${kak_opt_bundle_path}/one.kak" "${kak_config}/colors/one.kak"
   # Expose actual theme files where Kakoune expects them.
   for file in "${kak_opt_bundle_path}/one.kak/colors/"*.kak; do
     [ -e "$file" ] || continue
@@ -23,7 +24,7 @@ bundle-install-hook one.kak %{
   done
 }
 bundle-cleaner one.kak %{
-  rm -f "${kak_config}/colors/one.kak"
+  rm -rf "${kak_config}/colors/one.kak"
   for file in "${kak_config}/colors/one-"*.kak; do
     [ -e "$file" ] || continue
     rm -f "$file"

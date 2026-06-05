@@ -14,7 +14,6 @@ fi
 # Always keep these items.
 keep=(
   "_backups"
-  "autoload"
   "kakrc"
   "kak-lsp.toml"
   "DEVELOPMENT_PLAN.md"
